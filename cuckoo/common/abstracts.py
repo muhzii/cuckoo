@@ -396,6 +396,14 @@ class Machinery(object):
             waitme += 1
             current = self._status(label)
 
+    def port_forward(self, label, src, dest):
+        """Configures port forwarding for a vm.
+        @param label: virtual machine name.
+        @param src: port on host.
+        @param dest: port on guest.
+        """
+        raise NotImplementedError
+
 class LibVirtMachinery(Machinery):
     """Libvirt based machine manager.
 

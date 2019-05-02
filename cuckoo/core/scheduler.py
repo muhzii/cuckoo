@@ -13,7 +13,7 @@ import Queue
 import cuckoo
 
 from cuckoo.common.config import Config, emit_options, config
-from cuckoo.common.constants import faq
+from cuckoo.common.constants import faq, CUCKOO_GUEST_PORT
 from cuckoo.common.exceptions import (
     CuckooMachineError, CuckooGuestError, CuckooOperationalError,
     CuckooMachineSnapshotError, CuckooCriticalError, CuckooGuestCriticalTimeout
@@ -494,6 +494,22 @@ class AnalysisManager(threading.Thread):
 
             # Start the machine.
             machinery.start(self.machine.label, self.task)
+
+            # In case this is a NAT-based configuration, we try to set up port 
+            # forwarding for the agent using the machinery.
+            if self.machine.ip == "127.0.0.1":
+                try:
+                    machinery.port_forward(self.machine.label, 
+                                           self.guest_manager.port,
+                                           CUCKOO_GUEST_PORT)
+                except NotImplementedError:
+                    log.warning(
+                        "Port forwarding needs to be set up for the machine %s "
+                        "to run on NAT, make sure to configure the machinery "
+                        "to forward traffic from port (%s) on host to the agent "
+                        "port (%s).", self.machine.name, self.guest_manager.port,
+                        CUCKOO_GUEST_PORT
+                    )
 
             logger(
                 "Started VM",

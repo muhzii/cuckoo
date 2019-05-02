@@ -13,6 +13,7 @@ import socket
 import time
 import xmlrpclib
 import zipfile
+import threading
 
 from cuckoo.common.config import config, parse_options
 from cuckoo.common.constants import (
@@ -22,7 +23,7 @@ from cuckoo.common.constants import (
 from cuckoo.common.exceptions import (
     CuckooGuestError, CuckooGuestCriticalTimeout
 )
-from cuckoo.common.utils import TimeoutServer
+from cuckoo.common.utils import TimeoutServer, get_next_free_port
 from cuckoo.core.database import Database
 from cuckoo.misc import cwd
 
@@ -266,11 +267,29 @@ class OldGuestManager(object):
 class GuestManager(object):
     """This class represents the new Guest Manager. It operates on the new
     Cuckoo Agent which features a more abstract but more feature-rich API."""
+    next_forwarding_port = CUCKOO_GUEST_PORT
+    guest_manager_lock = threading.Lock()
 
     def __init__(self, vmid, ipaddr, platform, task_id, analysis_manager):
         self.vmid = vmid
         self.ipaddr = ipaddr
-        self.port = CUCKOO_GUEST_PORT
+        port = CUCKOO_GUEST_PORT
+
+        # If a NAT-based setup is adopted for the vm, we check the
+        # configurations for the forwarding port to use for the agent. If we
+        # don't find it, we look for a free port on the host.
+        if ipaddr == "127.0.0.1":
+            machinery = config("cuckoo:cuckoo:machinery")
+            port = config(
+                "%s:%s:agent_forwarding_port" % (machinery, vmid)
+            )
+
+            if not port:
+                with self.guest_manager_lock:
+                    port = get_next_free_port(self.next_forwarding_port)
+                    self.next_forwarding_port = port + 1
+
+        self.port = port
         self.platform = platform
         self.task_id = task_id
         self.analysis_manager = analysis_manager

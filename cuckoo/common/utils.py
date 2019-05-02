@@ -351,3 +351,16 @@ def list_of_ints(l):
 
 def list_of_strings(l):
     return list_of(l, basestring)
+
+def get_next_free_port(port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    while True:
+        try:
+            s.bind(("127.0.0.1", port))
+            break
+        except socket.error:
+            port += 1
+
+    s.close()
+    return port
