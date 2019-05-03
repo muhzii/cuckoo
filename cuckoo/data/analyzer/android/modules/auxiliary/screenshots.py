@@ -3,9 +3,9 @@
 # See the file 'docs/LICENSE' for copying permission.
 # Originally contributed by Check Point Software Technologies, Ltd.
 
+import io
 import time
 import logging
-import StringIO
 from threading import Thread
 from lib.common.abstracts import Auxiliary
 from lib.common.results import NetlogFile
@@ -43,8 +43,8 @@ class Screenshots(Auxiliary, Thread):
                     if Screenshot().equal(img_last, img_current):
                         continue
 
-                file = open(img_current, 'r')
-                tmpio = StringIO.StringIO(file.read())
+                file = open(img_current, 'rb')
+                tmpio = io.BytesIO(file.read())
                 # now upload to host from the StringIO
                 nf = NetlogFile("shots/%s.jpg" % str(img_counter).rjust(4, "0"))
 

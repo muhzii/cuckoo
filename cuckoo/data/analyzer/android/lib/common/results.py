@@ -44,7 +44,7 @@ class NetlogConnection(object):
         while not self.sock:
             try:
                 s = socket.create_connection((self.hostip, self.hostport), 0.1)
-                s.sendall(self.proto)
+                s.sendall(self.proto.encode())
             except socket.error:
                 time.sleep(0.1)
                 continue
@@ -52,6 +52,8 @@ class NetlogConnection(object):
             self.sock = s
 
     def send(self, data, retry=True):
+        data = data.encode()
+
         if not self.sock:
             self.connect()
 

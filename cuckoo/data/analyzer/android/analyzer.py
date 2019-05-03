@@ -8,7 +8,9 @@ import logging
 import pkgutil
 import shutil
 import sys
-import xmlrpclib
+import urllib.request
+import urllib.parse
+import traceback
 import time
 
 from lib.core.packages import choose_package
@@ -113,7 +115,7 @@ class Analyzer(object):
 
         # Try to import the analysis package.
         try:
-            __import__(package_name, globals(), locals(), ["dummy"], -1)
+            __import__(package_name, globals(), locals(), ["dummy"])
         # If it fails, we need to abort the analysis.
         except ImportError:
             raise CuckooError("Unable to import package \"{0}\", does not exist.".format(package_name))
@@ -139,7 +141,7 @@ class Analyzer(object):
 
             # Import the auxiliary module.
             try:
-                __import__(name, globals(), locals(), ["dummy"], -1)
+                __import__(name, globals(), locals(), ["dummy"])
             except ImportError as e:
                 log.warning("Unable to import the auxiliary module "
                             "\"%s\": %s", name, e)
@@ -237,6 +239,11 @@ if __name__ == "__main__":
         analyzer = Analyzer()
         # Run it and wait for the response.
         success = analyzer.run()
+
+        data = {
+            "status": "complete",
+            "description": success,
+        }
     # This is not likely to happen.
     except KeyboardInterrupt:
         error = "Keyboard Interrupt"
@@ -246,16 +253,22 @@ if __name__ == "__main__":
     # exceptions.
     except Exception as e:
         # Store the error.
-        error = str(e)
+        error_exc = traceback.format_exc()
 
         # Just to be paranoid.
-        if len(log.handlers) > 0:
-            log.critical(error)
+        if len(log.handlers):
+            log.critical(error_exc)
         else:
-            sys.stderr.write("{0}\n".format(e))
+            sys.stderr.write("{0}\n".format(error_exc))
+        
+        data = {
+            "status": "exception",
+            "description": error_exc
+        }
     # Once the analysis is completed or terminated for any reason, we report
     # back to the agent, notifying that it can report back to the host.
     finally:
-        # Establish connection with the agent XMLRPC server.
-        server = xmlrpclib.Server("http://127.0.0.1:8000")
-        server.complete(success, error, PATHS["root"])
+        # Establish connection with the new agent.
+        urllib.request.urlopen("http://127.0.0.1:8000/status", 
+                               urllib.parse.urlencode(data).encode()).read()
+            
