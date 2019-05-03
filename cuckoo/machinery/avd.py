@@ -5,7 +5,6 @@
 
 import logging
 import os
-import shlex
 import shutil
 import subprocess
 import time
@@ -100,7 +99,7 @@ class Avd(Machinery):
             "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
             "emu", "kill",
         ]
-        OSCommand.executeCommand(cmd)
+        execute(cmd)
 
     def _list(self):
         """Lists virtual machines installed.
@@ -218,7 +217,7 @@ class Avd(Machinery):
             _, port = task.options["proxy"].split(":")
             cmd += ["-http-proxy", "http://127.0.0.1:%s" % port]
 
-        self.emulator_processes[label] = OSCommand.executeAsyncCommand(cmd)
+        self.emulator_processes[label] = execute(cmd, async=True)
         time.sleep(10)
         # if not self.__checkADBRecognizeEmu(label):
         self.restart_adb_server()
@@ -237,7 +236,7 @@ class Avd(Machinery):
             "-s", "emulator-%s" % emulator_port,
             "wait-for-device",
         ]
-        OSCommand.executeCommand(cmd)
+        execute(cmd)
 
         log.debug("Waiting for the emulator to be ready")
         log.debug(" - (dev.bootcomplete)")
@@ -248,7 +247,7 @@ class Avd(Machinery):
                 "-s", "emulator-%s" % emulator_port,
                 "shell", "getprop", "dev.bootcomplete",
             ]
-            result = OSCommand.executeCommand(cmd)
+            result = execute(cmd)
             if result is not None and result.strip() == "1":
                 ready = True
             else:
@@ -262,7 +261,7 @@ class Avd(Machinery):
                 "-s", "emulator-%s" % emulator_port,
                 "shell", "getprop", "sys.boot_completed",
             ]
-            result = OSCommand.executeCommand(cmd)
+            result = execute(cmd)
             if result is not None and result.strip() == "1":
                 ready = True
             else:
@@ -276,7 +275,7 @@ class Avd(Machinery):
                 "-s", "emulator-%s" % emulator_port,
                 "shell", "getprop", "init.svc.bootanim",
             ]
-            result = OSCommand.executeCommand(cmd)
+            result = execute(cmd)
             if result is not None and result.strip() == "stopped":
                 ready = True
             else:
@@ -291,7 +290,7 @@ class Avd(Machinery):
             "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
             "forward", "tcp:8000", "tcp:8000",
         ]
-        OSCommand.executeAsyncCommand(cmd)
+        execute(cmd)
 
     def start_agent(self, label):
         cmd = [
@@ -299,7 +298,7 @@ class Avd(Machinery):
             "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
             "shell", "/data/local/agent.sh",
         ]
-        OSCommand.executeAsyncCommand(cmd)
+        execute(cmd, async=True)
         # Sleep 10 seconds to allow the agent to startup properly
         time.sleep(10)
 
@@ -310,26 +309,24 @@ class Avd(Machinery):
         log.debug("Restarting ADB server...")
 
         cmd = [self.options.avd.adb_path, "kill-server"]
-        OSCommand.executeCommand(cmd)
+        execute(cmd)
         log.debug("ADB server has been killed.")
 
         cmd = [self.options.avd.adb_path, "start-server"]
-        OSCommand.executeCommand(cmd)
+        execute(cmd)
         log.debug("ADB server has been restarted.")
 
-class OSCommand(object):
-    """Tool class that provides common methods to execute commands on the OS."""
+def execute(command, async=False):
+    """Executes a command"""
+    p = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
 
-    @staticmethod
-    def executeAsyncCommand(commandAndArgs):
-        return subprocess.Popen(commandAndArgs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if not async:
+        out, err = p.communicate()
 
-    @staticmethod
-    def executeCommand(commandAndArgs):
-        if isinstance(commandAndArgs, str):
-            commandAndArgs = shlex.split(commandAndArgs)
-
-        try:
-            return subprocess.check_output(commandAndArgs, stderr=subprocess.STDOUT)
-        except Exception:
+        if p.returncode != 0:
             return None
+        return out
