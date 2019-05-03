@@ -25,42 +25,54 @@ class Avd(Machinery):
         self.emulator_processes = {}
 
         if not self.options.avd.emulator_path:
-            raise CuckooCriticalError("emulator path missing, "
-                                      "please add it to the config file")
+            raise CuckooCriticalError(
+                "emulator path missing, please add it to the config file"
+            )
 
         if not os.path.exists(self.options.avd.emulator_path):
-            raise CuckooCriticalError("emulator not found at "
-                                      "specified path \"%s\"" %
-                                      self.options.avd.emulator_path)
+            raise CuckooCriticalError(
+                "emulator not found at specified path \"%s\""
+                % self.options.avd.emulator_path
+            )
 
         if not self.options.avd.adb_path:
-            raise CuckooCriticalError("adb path missing, "
-                                      "please add it to the config file")
+            raise CuckooCriticalError(
+                "adb path missing, please add it to the config file"
+            )
 
         if not os.path.exists(self.options.avd.adb_path):
-            raise CuckooCriticalError("adb not found at "
-                                      "specified path \"%s\"" %
-                                      self.options.avd.adb_path)
+            raise CuckooCriticalError(
+                "adb not found at specified path \"%s\""
+                % self.options.avd.adb_path
+            )
 
         if not self.options.avd.avd_path:
-            raise CuckooCriticalError("avd path missing, "
-                                      "please add it to the config file")
+            raise CuckooCriticalError(
+                "avd path missing, please add it to the config file"
+            )
 
         if not os.path.exists(self.options.avd.avd_path):
-            raise CuckooCriticalError("avd not found at "
-                                      "specified path \"%s\"" %
-                                      self.options.avd.avd_path)
+            raise CuckooCriticalError(
+                "avd not found at specified path \"%s\""
+                % self.options.avd.avd_path
+            )
 
         if not self.options.avd.reference_machine:
-            raise CuckooCriticalError("reference machine path missing, "
-                                      "please add it to the config file")
+            raise CuckooCriticalError(
+                "reference machine path missing, please add it "
+                "to the config file"
+            )
 
-        machine_path = os.path.join(self.options.avd.avd_path,
-                                    self.options.avd.reference_machine)
+        machine_path = os.path.join(
+            self.options.avd.avd_path, 
+            self.options.avd.reference_machine
+        )
         if not os.path.exists("%s.avd" % machine_path) or \
                 not os.path.exists("%s.ini" % machine_path):
-            raise CuckooCriticalError("reference machine not found at "
-                                      "specified path \"%s\"" % machine_path)
+            raise CuckooCriticalError(
+                "reference machine not found at specified "
+                "path \"%s\"" % machine_path
+            )
 
     def start(self, label, task):
         """Start a virtual machine.
@@ -105,62 +117,75 @@ class Avd(Machinery):
 
     def duplicate_reference_machine(self, label):
         """Creates a new emulator based on a reference one."""
-        reference_machine = self.options.avd.reference_machine
-        log.debug("Duplicate Reference Machine '{0}'.".format(reference_machine))
+        ref_machine = self.options.avd.reference_machine
+        log.debug("Duplicating Reference Machine '%s'.", ref_machine)
 
-        # Clean/delete if new emulator already exists.
+        # Clean/delete if emulator with the same label already exists.
         self.delete_old_emulator(label)
 
-        avd_config_file = os.path.join(self.options.avd.avd_path, reference_machine+".ini")
-        new_config_file = os.path.join(self.options.avd.avd_path, label+".ini")
-        reference_avd_path = os.path.join(self.options.avd.avd_path, reference_machine+".avd/")
-        new_avd_path = os.path.join(self.options.avd.avd_path, label+".avd/")
-        hw_qemu_config_file = os.path.join(new_avd_path, "hardware-qemu.ini")
+        # Define paths for both the reference and the new machines
+        avd_path = self.options.avd.avd_path
+        ref_conf_path = os.path.join(avd_path, ref_machine+".ini")
+        new_conf_path = os.path.join(avd_path, label+".ini")
+
+        ref_machine_path = os.path.join(avd_path, ref_machine+".avd/")
+        new_machine_path = os.path.join(avd_path, label+".avd/")
+        hw_qemu_conf = os.path.join(new_machine_path, "hardware-qemu.ini")
 
         # First we copy the template.
-        log.debug("Copy AVD reference config file '{0}' in '{1}'...".format(avd_config_file, new_config_file))
-        shutil.copyfile(avd_config_file, new_config_file)
+        log.debug(
+            "Copying AVD reference config file '%s' in '%s'..", 
+            ref_conf_path, new_conf_path
+        )
+        shutil.copyfile(ref_conf_path, new_conf_path)
 
         # Copy the internal files of the reference avd.
-        log.debug("Duplicate the AVD internal content from '{0}' in '{1}'...".format(reference_avd_path, new_avd_path))
-        cmd = "cp -R {0} {1}".format(reference_avd_path, new_avd_path)
-        OSCommand.executeCommand(cmd)
+        log.debug(
+            "Duplicating the AVD internal content from '%s' in '%s'..",
+            ref_machine_path, new_machine_path
+        )
+        shutil.copytree(ref_machine_path, new_machine_path)
 
         # Than adapt the content of the copied files.
-        self.replace_content_in_file(new_config_file, reference_machine, label)
-        self.replace_content_in_file(hw_qemu_config_file, reference_machine, label)
-
-        # self.state = AVDEmulator.STATE_PREPARED
-        # todo:will see
+        self.replace_file_content(new_conf_path, ref_machine, label)
+        self.replace_file_content(hw_qemu_conf, ref_machine, label)
 
     def delete_old_emulator(self, label):
-        """Deletes any trace of an emulator that would have the same name as
-        the one of the current emulator."""
-        old_emulator_config_file = os.path.join(self.options.avd.avd_path,
-                                                "%s.ini" % label)
+        """Deletes any trace of an emulator that would have the same 
+        name as the one of the current emulator."""
+        avd_path = self.options.avd.avd_path
 
-        if os.path.exists(old_emulator_config_file):
-            log.debug("Deleting old emulator config file '{0}'".format(old_emulator_config_file))
-            os.remove(old_emulator_config_file)
+        # Delete the old configuration file
+        old_config_path = os.path.join(avd_path, label+".ini")
+        if os.path.exists(old_config_path):
+            log.debug(
+                "Deleting old emulator config file '%s'",
+                old_config_path
+            )
+            os.remove(old_config_path)
 
-        old_emulator_path = os.path.join(self.options.avd.avd_path, label+".avd/")
-        if os.path.isdir(old_emulator_path):
-            log.debug("Deleting old emulator FS '{0}'".format(old_emulator_path))
-            shutil.rmtree(old_emulator_path)
+        # Delete old machine image files
+        old_machine_path = os.path.join(avd_path, label+".avd/")
+        if os.path.isdir(old_machine_path):
+            log.debug("Deleting old emulator image '%s'", old_machine_path)
+            shutil.rmtree(old_machine_path)
 
-    def replace_content_in_file(self, fileName, contentToReplace, replacementContent):
-        """Replaces the specified motif by a specified value in the specified
-        file.
+    def replace_file_content(self, fname, original, replacement):
+        """Replaces the specified motif by a specified value  
+        in the specified file.
         """
-
-        log.debug("Replacing '{0}' with '{1}' in '{2}'".format(contentToReplace, replacementContent, fileName))
+        log.debug(
+            "Replacing '%s' with '%s' in '%s'", 
+            original, replacement, fname
+        )
+        
         newLines = []
-        with open(fileName, 'r') as fd:
+        with open(fname, 'r') as fd:
             lines = fd.readlines()
             for line in lines:
-                newLines.append(line.replace(contentToReplace, replacementContent))
+                newLines.append(line.replace(original, replacement))
 
-        with open(fileName, 'w') as fd:
+        with open(fname, 'w') as fd:
             fd.writelines(newLines)
 
     def start_emulator(self, label, task):
