@@ -310,10 +310,20 @@ class Avd(Machinery):
         log.debug("Device emulator-%s is ready!" % emulator_port)
 
     def start_agent(self, emulator_port):
-        cmd = "/data/local/tmp/android-agent.sh"
-        self.adb_shell(cmd, emulator_port, async=True)
-        # Sleep 10 seconds to allow the agent to startup properly
-        time.sleep(10)
+        """Starts the cuckoo agent"""
+        log.debug('Starting the cuckoo agent on emulator-%s' % emulator_port)
+
+        # Obtain root access
+        self.adb_cmd("root", emulator_port)
+
+        # Set SELinux to permissive..
+        # For now, this is required for frida to work properly
+        # on some versions of Android
+        # https://github.com/frida/frida-core/tree/master/lib/selinux
+        self.adb_shell(["setenforce", "0"], emulator_port)
+        
+        shell_arg = "/data/local/tmp/android-agent.sh"
+        self.adb_shell(shell_arg, emulator_port, async=True)
 
     def port_forward(self, label, src, dest):
         """Configures port forwarding for a vm.
