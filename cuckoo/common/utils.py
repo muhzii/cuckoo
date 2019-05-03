@@ -20,6 +20,7 @@ import sys
 import threading
 import warnings
 import xmlrpclib
+import socket
 
 from distutils.version import StrictVersion
 
