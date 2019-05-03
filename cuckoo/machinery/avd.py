@@ -81,7 +81,14 @@ class Avd(Machinery):
         @raise CuckooMachineError: if unable to stop.
         """
         log.debug("Stopping vm %s" % label)
-        self.stop_emulator(label)
+
+        # Kill process.
+        cmd = [
+            self.options.avd.adb_path,
+            "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
+            "emu", "kill",
+        ]
+        OSCommand.executeCommand(cmd)
 
     def _list(self):
         """Lists virtual machines installed.
@@ -193,28 +200,6 @@ class Avd(Machinery):
         # Waits for device to be ready.
         self.wait_for_device_ready(label)
 
-    def stop_emulator(self, label):
-        """Stop the emulator."""
-        emulator_port = str(self.options.get(label)["emulator_port"])
-        log.info("Stopping AVD listening on port {0}".format(emulator_port))
-
-        # Kill process.
-        cmd = [
-            self.options.avd.adb_path,
-            "-s", "emulator-%s" % emulator_port,
-            "emu", "kill",
-        ]
-        OSCommand.executeCommand(cmd)
-
-        time.sleep(1)
-        if label in self.emulator_processes:
-            try:
-                self.emulator_processes[label].kill()
-            except Exception as e:
-                log.warning(e)
-
-            del self.emulator_processes[label]
-
     def wait_for_device_ready(self, label):
         """Analyzes the emulator and returns when it's ready."""
 
@@ -292,23 +277,6 @@ class Avd(Machinery):
         OSCommand.executeAsyncCommand(cmd)
         # Sleep 10 seconds to allow the agent to startup properly
         time.sleep(10)
-
-    def check_adb_recognize_emulator(self, label):
-        """Checks that ADB recognizes the emulator. Returns True if device is
-        recognized by ADB, False otherwise.
-        """
-        log.debug("Checking if ADB recognizes emulator...")
-
-        cmd = [self.options.avd.adb_path, "devices"]
-        output = OSCommand.executeCommand(cmd)
-
-        emu = "emulator-%s" % self.options.get(label)["emulator_port"]
-        if emu in output:
-            log.debug("Emulator has been found!")
-            return True
-
-        log.debug("Emulator has not been found.")
-        return False
 
     def restart_adb_server(self):
         """Restarts ADB server. This function is not used because we have to
