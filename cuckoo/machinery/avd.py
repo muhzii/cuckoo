@@ -114,6 +114,20 @@ class Avd(Machinery):
         """
         log.debug("Getting status for %s" % label)
 
+    def restart_adb_server(self):
+        """Restarts ADB server. This function is not used because we have to
+        verify we don't have multiple devices.
+        """
+        log.debug("Restarting ADB server...")
+
+        cmd = [self.options.avd.adb_path, "kill-server"]
+        execute(cmd)
+        log.debug("ADB server has been killed.")
+
+        cmd = [self.options.avd.adb_path, "start-server"]
+        execute(cmd)
+        log.debug("ADB server has been restarted.")
+
     def duplicate_reference_machine(self, label):
         """Creates a new emulator based on a reference one."""
         ref_machine = self.options.avd.reference_machine
@@ -284,14 +298,6 @@ class Avd(Machinery):
         time.sleep(5)
         log.debug("Emulator emulator-"+emulator_port+" is ready !")
 
-    def port_forward(self, label):
-        cmd = [
-            self.options.avd.adb_path,
-            "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
-            "forward", "tcp:8000", "tcp:8000",
-        ]
-        execute(cmd)
-
     def start_agent(self, label):
         cmd = [
             self.options.avd.adb_path,
@@ -302,19 +308,13 @@ class Avd(Machinery):
         # Sleep 10 seconds to allow the agent to startup properly
         time.sleep(10)
 
-    def restart_adb_server(self):
-        """Restarts ADB server. This function is not used because we have to
-        verify we don't have multiple devices.
-        """
-        log.debug("Restarting ADB server...")
-
-        cmd = [self.options.avd.adb_path, "kill-server"]
+    def port_forward(self, label):
+        cmd = [
+            self.options.avd.adb_path,
+            "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
+            "forward", "tcp:8000", "tcp:8000",
+        ]
         execute(cmd)
-        log.debug("ADB server has been killed.")
-
-        cmd = [self.options.avd.adb_path, "start-server"]
-        execute(cmd)
-        log.debug("ADB server has been restarted.")
 
 def execute(command, async=False):
     """Executes a command"""
