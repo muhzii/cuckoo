@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import time
+import telnetlib
 
 from cuckoo.common.abstracts import Machinery
 from cuckoo.common.exceptions import CuckooCriticalError
@@ -21,8 +22,6 @@ class Avd(Machinery):
         """Runs all checks when a machine manager is initialized.
         @raise CuckooMachineError: if the android emulator is not found.
         """
-        self.emulator_processes = {}
-
         if not self.options.avd.emulator_path:
             raise CuckooCriticalError(
                 "emulator path missing, please add it to the config file"
@@ -73,18 +72,24 @@ class Avd(Machinery):
                 "path \"%s\"" % machine_path
             )
 
+        # We restart the adb server just once at startup. This is important
+        # in case either the server is not running or has some leftover 
+        # settings that we might want to discard.
+        self.adb_cmd("kill-server")
+        self.adb_cmd("start-server")
+
     def start(self, label, task):
         """Start a virtual machine.
         @param label: virtual machine name.
         @param task: task object.
         @raise CuckooMachineError: if unable to start.
         """
-        log.debug("Starting vm %s" % label)
-
         self.duplicate_reference_machine(label)
-        self.start_emulator(label, task)
-        self.port_forward(label)
-        self.start_agent(label)
+
+        log.debug("Starting vm %s" % label)
+        emulator_port = self.start_emulator(label, task)
+
+        self.start_agent(emulator_port)
 
     def stop(self, label):
         """Stops a virtual machine.
@@ -92,14 +97,10 @@ class Avd(Machinery):
         @raise CuckooMachineError: if unable to stop.
         """
         log.debug("Stopping vm %s" % label)
+        emulator_port = self.get_emulator_port(label)
 
-        # Kill process.
-        cmd = [
-            self.options.avd.adb_path,
-            "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
-            "emu", "kill",
-        ]
-        execute(cmd)
+        log.info("Stopping avd listening on port %s" % emulator_port)
+        self.adb_cmd(["emu", "kill"], emulator_port)
 
     def _list(self):
         """Lists virtual machines installed.
@@ -113,20 +114,6 @@ class Avd(Machinery):
         @return: status string.
         """
         log.debug("Getting status for %s" % label)
-
-    def restart_adb_server(self):
-        """Restarts ADB server. This function is not used because we have to
-        verify we don't have multiple devices.
-        """
-        log.debug("Restarting ADB server...")
-
-        cmd = [self.options.avd.adb_path, "kill-server"]
-        execute(cmd)
-        log.debug("ADB server has been killed.")
-
-        cmd = [self.options.avd.adb_path, "start-server"]
-        execute(cmd)
-        log.debug("ADB server has been restarted.")
 
     def duplicate_reference_machine(self, label):
         """Creates a new emulator based on a reference one."""
@@ -201,10 +188,58 @@ class Avd(Machinery):
         with open(fname, 'w') as fd:
             fd.writelines(newLines)
 
+    def _get_adb_cmd(self, args, emulator_port=None, shell=False):
+        """Returns a formatted adb command"""
+        cmd = [self.options.avd.adb_path]
+
+        if emulator_port:
+            cmd += ["-s", "emulator-%s" % emulator_port]
+
+        if shell:
+            cmd += ["shell"]
+
+        if isinstance(args, (str, unicode)):
+            args = args.split()
+
+        return cmd + args
+
+    def adb_cmd(self, args, emulator_port=None, async=False):
+        """Runs an adb command"""
+        cmd = self._get_adb_cmd(args, emulator_port)
+        return execute(cmd, async)
+
+    def adb_shell(self, args, emulator_port, async=False):
+        """Runs a command on the shell"""
+        cmd = self._get_adb_cmd(args, emulator_port, True)
+        return execute(cmd, async)
+    
+    def get_emulator_port(self, label):
+        """Returns the emulator port for the given label by Telnet'ing 
+        into all the connected emulator consoles and see if one of them
+        is our emulator.
+        """
+        output = self.adb_cmd("devices").splitlines()[1:-1]
+        telnet = telnetlib.Telnet()
+
+        for line in output:
+            port = int(line.split('\t')[0].split('-')[1])
+            
+            try:
+                telnet.open("127.0.0.1", port)
+            except:
+                # In case the emulator is offline
+                continue
+
+            telnet.read_until("OK")
+            telnet.write("avd name\r\n")
+            avd_name = telnet.read_until("OK").splitlines()[1]
+            telnet.close()
+
+            if avd_name == label:
+                return port
+
     def start_emulator(self, label, task):
         """Starts the emulator."""
-        emulator_port = self.options.get(label)["emulator_port"]
-
         cmd = [
             self.options.avd.emulator_path,
             "@%s" % label,
@@ -213,15 +248,13 @@ class Avd(Machinery):
             "full",
             "-netdelay",
             "none",
-            "-port",
-            "%s" % emulator_port,
             "-tcpdump",
             self.pcap_path(task.id),
         ]
 
-        # In headless mode we remove the skin, audio, and window support.
+        # In headless mode we remove the audio, and window support.
         if self.options.avd.mode == "headless":
-            cmd += ["-no-skin", "-no-audio", "-no-window"]
+            cmd += ["-no-audio", "-no-window"]
 
         # If a proxy address has been provided for this analysis, then we have
         # to pass the proxy address along to the emulator command. The
@@ -230,91 +263,71 @@ class Avd(Machinery):
         if "proxy" in task.options:
             _, port = task.options["proxy"].split(":")
             cmd += ["-http-proxy", "http://127.0.0.1:%s" % port]
+        
+        # Start the emulator process ..
+        execute(cmd, async=True)
 
-        self.emulator_processes[label] = execute(cmd, async=True)
-        time.sleep(10)
-        # if not self.__checkADBRecognizeEmu(label):
-        self.restart_adb_server()
-        # Waits for device to be ready.
-        self.wait_for_device_ready(label)
+        # We wait untill the emulator shows up for the adb server.
+        while True:
+            emulator_port = self.get_emulator_port(label)
+            if emulator_port is not None:
+                break
+            time.sleep(1)
+        log.debug("Emulator has been found!")
 
-    def wait_for_device_ready(self, label):
-        """Analyzes the emulator and returns when it's ready."""
+        # Wait for device to be ready.
+        self.wait_for_device_ready(emulator_port)
+        return emulator_port
 
-        emulator_port = str(self.options.get(label)["emulator_port"])
-        adb = self.options.avd.adb_path
+    def wait_for_device_ready(self, emulator_port):
+        """Analyzes the emulator and checks if booting and other
+        stuff has finished.
+        """
+        log.debug("Waiting for device emulator-%s to be ready." % emulator_port)
+        self.adb_cmd("wait-for-device", emulator_port)
 
-        log.debug("Waiting for device emulator-"+emulator_port+" to be ready.")
-        cmd = [
-            adb,
-            "-s", "emulator-%s" % emulator_port,
-            "wait-for-device",
-        ]
-        execute(cmd)
-
-        log.debug("Waiting for the emulator to be ready")
         log.debug(" - (dev.bootcomplete)")
-        ready = False
-        while not ready:
-            cmd = [
-                adb,
-                "-s", "emulator-%s" % emulator_port,
-                "shell", "getprop", "dev.bootcomplete",
-            ]
-            result = execute(cmd)
-            if result is not None and result.strip() == "1":
-                ready = True
-            else:
-                time.sleep(1)
+        while True:
+            out = self.adb_shell(["getprop", "dev.bootcomplete"], emulator_port)
+            if out is not None and out.strip() == "1":
+                break
+            time.sleep(1)
 
-        log.debug("- (sys_bootcomplete)")
-        ready = False
-        while not ready:
-            cmd = [
-                adb,
-                "-s", "emulator-%s" % emulator_port,
-                "shell", "getprop", "sys.boot_completed",
-            ]
-            result = execute(cmd)
-            if result is not None and result.strip() == "1":
-                ready = True
-            else:
-                time.sleep(1)
+        log.debug(" - (sys_bootcomplete)")
+        while True:
+            out = self.adb_shell(["getprop", "sys.boot_completed"], emulator_port)
+            if out is not None and out.strip() == "1":
+                break
+            time.sleep(1)
 
         log.debug(" - (init.svc.bootanim)")
-        ready = False
-        while not ready:
-            cmd = [
-                adb,
-                "-s", "emulator-%s" % emulator_port,
-                "shell", "getprop", "init.svc.bootanim",
-            ]
-            result = execute(cmd)
-            if result is not None and result.strip() == "stopped":
-                ready = True
-            else:
-                time.sleep(1)
+        while True:
+            out = self.adb_shell(["getprop", "init.svc.bootanim"], emulator_port)
+            if out is not None and out.strip() == "stopped":
+                break
+            time.sleep(1)
+        
+        log.debug("Device emulator-%s is ready!" % emulator_port)
 
-        time.sleep(5)
-        log.debug("Emulator emulator-"+emulator_port+" is ready !")
-
-    def start_agent(self, label):
-        cmd = [
-            self.options.avd.adb_path,
-            "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
-            "shell", "/data/local/agent.sh",
-        ]
-        execute(cmd, async=True)
+    def start_agent(self, emulator_port):
+        cmd = "/data/local/tmp/android-agent.sh"
+        self.adb_shell(cmd, emulator_port, async=True)
         # Sleep 10 seconds to allow the agent to startup properly
         time.sleep(10)
 
-    def port_forward(self, label):
-        cmd = [
-            self.options.avd.adb_path,
-            "-s", "emulator-%s" % self.options.get(label)["emulator_port"],
-            "forward", "tcp:8000", "tcp:8000",
-        ]
-        execute(cmd)
+    def port_forward(self, label, src, dest):
+        """Configures port forwarding for a vm.
+        @param label: virtual machine name.
+        @param src: port on host.
+        @param dest: port on guest.
+        """
+        emulator_port = self.get_emulator_port(label)
+        args = ["forward", "tcp:%s" % src, "tcp:%s" % dest]
+        
+        self.adb_cmd(args, emulator_port)
+
+        # TODO: we'll see
+        time.sleep(10)
 
 def execute(command, async=False):
     """Executes a command"""

@@ -361,7 +361,6 @@ class Config(object):
                 "label": String("cuckoo1"),
                 "platform": String("android"),
                 "ip": String("127.0.0.1"),
-                "emulator_port": Int(5554),
                 "resultserver_ip": String("10.0.2.2"),
                 "resultserver_port": Int(),
                 "agent_forwarding_port": Int(),
