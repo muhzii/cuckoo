@@ -5,6 +5,8 @@
 
 import math
 import filecmp
+import logging
+import subprocess
 
 try:
     import ImageChops
@@ -17,6 +19,8 @@ except:
         HAVE_PIL = True
     except:
         HAVE_PIL = False
+
+log = logging.getLogger(__name__)
 
 class Screenshot:
     """Get screenshots."""
@@ -51,3 +55,14 @@ class Screenshot:
 
     def equal(self, img1, img2):
         return filecmp.cmp(img1, img2)
+
+    def take(self, img_path):
+        """Take a screenshot."""
+        p = subprocess.Popen(
+            ["/system/bin/screencap", "-p", img_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+
+        out, err = p.communicate()
+        if p.returncode != 0:
+            log.error("Error creating screenshot: %r", err)

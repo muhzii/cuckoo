@@ -4,26 +4,57 @@
 # Originally contributed by Check Point Software Technologies, Ltd.
 
 import logging
+import subprocess
 
-from lib.api.adb import dump_droidmon_logs, execute_sample, install_sample
 from lib.common.abstracts import Package
+from lib.common.exceptions import CuckooPackageError
 
 log = logging.getLogger(__name__)
 
 class Apk(Package):
     """Apk analysis package."""
     def __init__(self, options={}):
-        super(Apk, self).__init__(options)
-
+        Package.__init__(self, options)
         self.package, self.activity = options.get("apk_entry", ":").split(":")
 
     def start(self, path):
-        install_sample(path)
-        execute_sample(self.package, self.activity)
+        self.install_app(path)
+        self.execute_app()
 
     def check(self):
         return True
 
     def finish(self):
-        dump_droidmon_logs(self.package)
         return True
+
+    def install_app(self, path):
+        """Install the sample on the emulator via package manager"""
+        log.info("Installing sample on the device: %s", path)
+        
+        p = subprocess.Popen(
+            ["/system/bin/sh", "/system/bin/pm", "install", "-r", path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+
+        out, err = p.communicate()
+        if p.returncode != 0:
+            raise CuckooPackageError("Error installing sample: %r" % err)
+        log.info("Installed sample successfully")
+    
+    def execute_app(self):
+        """Execute the sample on the emulator via activity manager"""
+        log.info("Executing sample on the device with activity manager..")
+
+        package_activity = "%s/%s" % (self.package, self.activity)
+        p = subprocess.Popen(
+            ["/system/bin/sh", "/system/bin/am", "start",
+            "-n", package_activity], stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE
+        )
+
+        out, err = p.communicate()
+        if p.returncode != 0:
+            raise CuckooPackageError(
+                "Error executing package activity: %s" % err
+            )
+        log.info("Executed package activity: %r", out)
