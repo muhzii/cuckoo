@@ -16,7 +16,7 @@ import time
 from lib.core.packages import choose_package
 from lib.common.exceptions import CuckooError, CuckooPackageError
 from lib.common.abstracts import Package, Auxiliary
-from lib.common.constants import PATHS
+from lib.common.constants import ROOT
 from lib.core.config import Config
 from lib.core.startup import init_logging
 from modules import auxiliary
@@ -43,8 +43,7 @@ class Analyzer(object):
         # We update the target according to its category. If it's a file, then
         # we store the path.
         if self.config.category == "file":
-            self.target = os.path.join("/data/local/tmp", str(self.config.file_name))
-            shutil.copyfile("config/hooks.json", "/data/local/tmp/hooks.json")
+            self.target = os.path.join(ROOT, self.config.file_name)
         # If it's a URL, well.. we store the URL.
         else:
             self.target = self.config.target
