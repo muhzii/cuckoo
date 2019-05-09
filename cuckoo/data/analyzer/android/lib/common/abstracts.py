@@ -37,4 +37,11 @@ class Package(object):
         raise NotImplementedError
 
 class Auxiliary(object):
-    pass
+    def __init__(self, options={}):
+        self.options = options
+
+    def start(self):
+        pass
+    
+    def stop(self):
+        pass
