@@ -44,15 +44,17 @@ class NetlogConnection(object):
         while not self.sock:
             try:
                 s = socket.create_connection((self.hostip, self.hostport), 0.1)
-                s.sendall(self.proto.encode())
             except socket.error:
                 time.sleep(0.1)
                 continue
 
+            s.settimeout(None)
+            s.sendall(self.proto.encode())
             self.sock = s
 
     def send(self, data, retry=True):
-        data = data.encode()
+        if type(data) == str:
+            data = data.encode()
 
         if not self.sock:
             self.connect()
@@ -80,8 +82,9 @@ class NetlogConnection(object):
 
 class NetlogFile(NetlogConnection):
     def __init__(self, filepath):
-        self.filepath = filepath
-        NetlogConnection.__init__(self, proto="FILE\n{0}\n".format(self.filepath))
+        NetlogConnection.__init__(
+            self, proto="FILE\n{0}\n".format(filepath)
+        )
         self.connect()
 
 class NetlogHandler(logging.Handler, NetlogConnection):
