@@ -21,8 +21,7 @@ from lib.core.config import Config
 from lib.core.startup import init_logging
 from modules import auxiliary
 
-logging.disable(level=logging.DEBUG)
-log = logging.getLogger()
+log = logging.getLogger("analyzer")
 
 class Analyzer(object):
     def __init__(self):
@@ -52,17 +51,19 @@ class Analyzer(object):
         self.prepare()
 
         log.info("Starting analyzer from: {0}".format(os.getcwd()))
-        log.info("Storing results at: {0}".format(PATHS["root"]))
         log.info("Target is: {0}".format(self.target))
 
         # If no analysis package was specified at submission, we try to select
         # one automatically.
         if not self.config.package:
-            log.info("No analysis package specified, trying to detect it automagically")
+            log.info("No analysis package specified, trying to "
+                     "detect it automagically")
             # If the analysis target is a file, we choose the package according
             # to the file format.
             if self.config.category == "file":
-                package = choose_package(self.config.file_type, self.config.file_name)
+                package = choose_package(
+                    self.config.file_type, self.config.file_name
+                )
             # If it's an URL, we'll just use the default Internet Explorer
             # package.
             else:
@@ -71,7 +72,8 @@ class Analyzer(object):
             # If we weren't able to automatically determine the proper package,
             # we need to abort the analysis.
             if not package:
-                raise CuckooError("No valid package available for file type: {0}".format(self.config.file_type))
+                raise CuckooError("No valid package available for file "
+                                  "type: {0}".format(self.config.file_type))
 
             log.info("Automatically selected analysis package \"%s\"", package)
         # Otherwise just select the specified package.
@@ -86,7 +88,8 @@ class Analyzer(object):
             __import__(package_name, globals(), locals(), ["dummy"])
         # If it fails, we need to abort the analysis.
         except ImportError:
-            raise CuckooError("Unable to import package \"{0}\", does not exist.".format(package_name))
+            raise CuckooError("Unable to import package \"{0}\", does "
+                              "not exist.".format(package_name))
 
         # Initialize the package parent abstract.
         Package()
@@ -95,10 +98,11 @@ class Analyzer(object):
         try:
             package_class = Package.__subclasses__()[0]
         except IndexError as e:
-            raise CuckooError("Unable to select package class (package={0}): {1}".format(package_name, e))
+            raise CuckooError("Unable to select package class "
+                              "(package={0}): {1}".format(package_name, e))
 
         # Initialize the analysis package.
-        pack = package_class(self.get_options())
+        pack = package_class(self.config.options)
 
         # Initialize Auxiliary modules
         Auxiliary()
@@ -129,25 +133,14 @@ class Analyzer(object):
                 log.warning("Cannot execute auxiliary module %s: %s",
                             aux.__class__.__name__, e)
                 continue
-            finally:
+            else:
                 log.info("Started auxiliary module %s",
                          aux.__class__.__name__)
                 aux_enabled.append(aux)
 
         # Start analysis package. If for any reason, the execution of the
         # analysis package fails, we have to abort the analysis.
-        try:
-            pack.start(self.target)
-        except NotImplementedError:
-            raise CuckooError("The package \"{0}\" doesn't contain a run "
-                              "function.".format(package_name))
-        except CuckooPackageError as e:
-            raise CuckooError("The package \"{0}\" start function raised an "
-                              "error: {1}".format(package_name, e))
-        except Exception as e:
-            raise CuckooError("The package \"{0}\" start function encountered "
-                              "an unhandled exception: "
-                              "{1}".format(package_name, e))
+        pack.start(self.target)
 
         time_counter = 0
         while True:
@@ -239,4 +232,4 @@ if __name__ == "__main__":
         # Establish connection with the new agent.
         urllib.request.urlopen("http://127.0.0.1:8000/status", 
                                urllib.parse.urlencode(data).encode()).read()
-            
+
