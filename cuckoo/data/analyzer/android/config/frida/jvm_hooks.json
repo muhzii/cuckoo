@@ -1,0 +1,212 @@
+{
+    "android.telephony.TelephonyManager": [
+        {
+            "name": "getDeviceId",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getSubscriberId",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getLine1Number",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getNetworkOperator",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getNetworkOperatorName",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getSimOperator",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getSimOperatorName",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getSimCountryIso",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getSimSerialNumber",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getNetworkCountryIso",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getDeviceSoftwareVersion",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getImei",
+            "category": "Identifiers"
+        },
+        {
+            "name": "getMeid",
+            "category": "Identifiers"
+        }
+    ],
+    "android.net.wifi.WifiInfo": [
+        {
+            "name": "getMacAddress",
+            "category": "Identifier"
+        }
+    ],
+    "android.app.SharedPreferencesImpl": [
+        {
+            "name": "getBoolean",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key"
+            },
+            "captureAttributes": {
+                "mFile": "File name"
+            }
+        },
+        {
+            "name": "getFloat",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key"
+            },
+            "captureAttributes": {
+                "mFile": "File name"
+            }
+        },
+        {
+            "name": "getInt",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key"
+            },
+            "captureAttributes": {
+                "mFile": "File name"
+            }
+        },
+        {
+            "name": "getLong",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key"
+            },
+            "captureAttributes": {
+                "mFile": "File name"
+            }
+        },
+        {
+            "name": "getString",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key"
+            },
+            "captureAttributes": {
+                "mFile": "File name"
+            }
+        },
+        {
+            "name": "getAll",
+            "category": "Application preferences",
+            "captureAttributes": {
+                "mFile": "File name"
+            }
+        }
+    ],
+    "android.app.SharedPreferencesImpl$EditorImpl": [
+        {
+            "name": "putFloat",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key",
+                "1": "Value"
+            },
+            "captureAttributes": {
+                "this$0.mFile": "File name"
+            }
+        },
+        {
+            "name": "putBoolean",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key",
+                "1": "Value"
+            },
+            "captureAttributes": {
+                "this$0.mFile": "File name"
+            }
+        },
+        {
+            "name": "putInt",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key",
+                "1": "Value"
+            },
+            "captureAttributes": {
+                "this$0.mFile": "File name"
+            }
+        },
+        {
+            "name": "putLong",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key",
+                "1": "Value"
+            },
+            "captureAttributes": {
+                "this$0.mFile": "File name"
+            }
+        },
+        {
+            "name": "putString",
+            "category": "Application preferences",
+            "captureArguments": {
+                "0": "Key",
+                "1": "Value"
+            },
+            "captureAttributes": {
+                "this$0.mFile": "File name"
+            }
+        }
+    ],
+    "android.content.ContentResolver": [
+        {
+            "name": "query",
+            "category": "Application data",
+            "captureArguments": {
+                "0": "URI",
+                "1": "Columns"
+            }
+        },
+        {
+            "name": "delete",
+            "category": "Application data",
+            "captureArguments": {
+                "0": "URI"
+            }
+        },
+        {
+            "name": "insert",
+            "category": "Application data",
+            "captureArguments": {
+                "0": "URI",
+                "1": "Content values"
+            }
+        }
+    ],
+    "android.database.sqlite.SQLiteDatabase": [
+        {
+            "name": "insert",
+            "category": "Application data",
+            "captureArguments": {
+                "2": "Content values"
+            }
+        }
+    ]
+}

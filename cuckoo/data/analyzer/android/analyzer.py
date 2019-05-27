@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2016 Cuckoo Foundation.
+# Copyright (C) 2014-2019 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 # Originally contributed by Check Point Software Technologies, Ltd.
@@ -14,16 +14,27 @@ import traceback
 import time
 
 from lib.core.packages import choose_package
-from lib.common.exceptions import CuckooError, CuckooPackageError
 from lib.common.abstracts import Package, Auxiliary
-from lib.common.constants import ROOT
+from lib.common.constants import ROOT, FRIDA_LOGS_PATH
+from lib.common.results import upload_to_host
 from lib.core.config import Config
 from lib.core.startup import init_logging
+from lib.common.exceptions import (
+    CuckooError, CuckooPackageError, CuckooFridaError
+)
+
 from modules import auxiliary
 
 log = logging.getLogger("analyzer")
 
 class Analyzer(object):
+    """Cuckoo Android analyzer.
+
+    This class is responsible for initializing and starting the analysis
+    procedure. Includes running auxiliary modules, invoking an analysis 
+    package, instrumenting it, and keeping track of the analysis status.
+    """
+
     def __init__(self):
         self.config = None
         self.target = None
@@ -102,7 +113,7 @@ class Analyzer(object):
                               "(package={0}): {1}".format(package_name, e))
 
         # Initialize the analysis package.
-        pack = package_class(self.config.options)
+        package = package_class(self.config.options)
 
         # Initialize Auxiliary modules
         Auxiliary()
@@ -140,7 +151,10 @@ class Analyzer(object):
 
         # Start analysis package. If for any reason, the execution of the
         # analysis package fails, we have to abort the analysis.
-        pack.start(self.target)
+        package.start(self.target)
+
+        # Instrument the analysis package.
+        package.instrument()
 
         time_counter = 0
         while True:
@@ -154,7 +168,7 @@ class Analyzer(object):
                 # is executed at every loop's iteration. If such function
                 # returns False, it means that it requested the analysis
                 # to be terminate.
-                if not pack.check():
+                if not package.check():
                     log.info("The analysis package requested the "
                              "termination of the analysis...")
                     break
@@ -172,7 +186,7 @@ class Analyzer(object):
         try:
             # Before shutting down the analysis, the package can perform some
             # final operations through the finish() function.
-            pack.finish()
+            package.finish()
         except Exception as e:
             log.warning("The package \"%s\" finish function raised an "
                         "exception: %s", package_name, e)
@@ -186,6 +200,11 @@ class Analyzer(object):
             except Exception as e:
                 log.warning("Cannot terminate auxiliary module %s: %s",
                             aux.__class__.__name__, e)
+
+        # Upload behavioral logs recorded by Frida.
+        for fname in os.listdir(FRIDA_LOGS_PATH):
+            fpath = os.path.join(FRIDA_LOGS_PATH, fname)
+            upload_to_host(fpath, "logs/" + fname)
 
         # Let's invoke the completion procedure.
         self.complete()
@@ -232,4 +251,3 @@ if __name__ == "__main__":
         # Establish connection with the new agent.
         urllib.request.urlopen("http://127.0.0.1:8000/status", 
                                urllib.parse.urlencode(data).encode()).read()
-
